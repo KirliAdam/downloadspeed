@@ -81,26 +81,7 @@
     #ipTable td {
       text-align: left;
     }
-    #mapBox {
-      margin-left: auto;
-      flex: 0 0 auto;
-      border-radius: 0.5rem;
-      overflow: hidden;
-      background: #ffffff;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
-    }
-    #mapBox img {
-      display: none;
-    }
-    #leafletMap {
-      width: 320px;
-      height: 180px;
-      background: #e5e7eb;
-    }
-    #gmap {
-      width: 320px;
-      height: 180px;
-    }
+
     #history {
       margin: 2rem auto;
       max-width: 720px;
@@ -146,9 +127,7 @@
         </tbody>
       </table>
     </div>
-    <div id="mapBox">
-      <div id="gmap" role="img" aria-label="Location map"></div>
-    </div>
+
   </div>
   <!-- Replaced inline onclick with an id for JS event listener -->
   <button id="startTest">Start Test</button>
@@ -170,8 +149,7 @@
     </table>
     </section>
  
-   <script async src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
-   <script>
+       <script>
     // UI refs and state
     const resultEl = document.getElementById("result");
     const pingEl = document.getElementById("ping");
@@ -191,8 +169,7 @@
     const historyBodyEl = document.getElementById("historyBody");
     let isTesting = false;
     let activeController = null;
-    let gmap = null;
-    let gmapMarker = null;
+
     let userAborted = false;
     let pingIntervalId = null;
     let progressRafId = null;
@@ -390,30 +367,7 @@
           latEl.textContent = latitude != null ? String(latitude) : "-";
           lonEl.textContent = longitude != null ? String(longitude) : "-";
 
-                    if (latitude != null && longitude != null) {
-            const lat = latitude;
-            const lon = longitude;
-            const zoom = 6;
-            // Initialize or update Google Map via gmaps api
-            if (!gmap) {
-              gmap = new google.maps.Map(document.getElementById('gmap'), {
-                center: { lat, lng: lon },
-                zoom: zoom,
-                disableDefaultUI: false,
-                mapTypeControl: false,
-                streetViewControl: false,
-              });
-            } else {
-              gmap.setCenter({ lat, lng: lon });
-              gmap.setZoom(zoom);
-            }
-            if (gmapMarker) {
-              gmapMarker.setPosition({ lat, lng: lon });
-            } else {
-              gmapMarker = new google.maps.Marker({ position: { lat, lng: lon }, map: gmap });
-            }
-          }
-          }
+                    
         } else {
           asnEl.textContent = ispEl.textContent = countryEl.textContent = regionEl.textContent = cityEl.textContent = latEl.textContent = lonEl.textContent = "-";
           const img = document.getElementById('geoMap');
