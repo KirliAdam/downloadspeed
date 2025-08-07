@@ -27,25 +27,92 @@
       margin-top: 2rem;
       font-size: 1.3rem;
     }
+    #ping {
+      margin-top: 0.5rem;
+      color: #374151;
+      font-size: 1rem;
+    }
+    #progress {
+      width: 320px;
+      max-width: 90%;
+      height: 10px;
+      background: #e5e7eb;
+      margin: 1rem auto 0;
+      border-radius: 9999px;
+      overflow: hidden;
+      visibility: hidden;
+    }
+    #progressBar {
+      height: 100%;
+      width: 0%;
+      background: #10b981;
+      transition: width 0.2s linear;
+    }
+    #progress.indeterminate #progressBar {
+      width: 40%;
+      animation: indeterminate 1s infinite linear;
+    }
+    @keyframes indeterminate {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(250%); }
+    }
   </style>
 </head>
 <body>
   <h1>Test Your Internet Download Speed</h1>
   <!-- Replaced inline onclick with an id for JS event listener -->
   <button id="startTest">Start Test</button>
+  <div id="progress" aria-hidden="true"><div id="progressBar"></div></div>
   <div id="result" role="status" aria-live="polite"></div>
+  <div id="ping"></div>
 
   <script>
+    // UI refs and state
+    const resultEl = document.getElementById("result");
+    const pingEl = document.getElementById("ping");
+    const progressEl = document.getElementById("progress");
+    const progressBar = document.getElementById("progressBar");
+    const startBtn = document.getElementById("startTest");
+    let isTesting = false;
+    let activeController = null;
+
+    function setButtonTestingState(inProgress) {
+      startBtn.textContent = inProgress ? "Abort" : "Start Test";
+    }
+
+    function showProgress(indeterminate = false) {
+      progressEl.style.visibility = "visible";
+      progressEl.classList.toggle("indeterminate", indeterminate);
+      progressBar.style.width = indeterminate ? "40%" : "0%";
+    }
+
+    function setProgress(percent) {
+      progressEl.classList.remove("indeterminate");
+      progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+    }
+
+    function hideProgress() {
+      progressEl.style.visibility = "hidden";
+      progressEl.classList.remove("indeterminate");
+      progressBar.style.width = "0%";
+    }
+
     async function testDownloadSpeed() {
       const baseUrl = "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg"; // ~2.3MB file
       const url = `${baseUrl}?cb=${Date.now()}`; // cache-busting to avoid 304s
 
-      const resultEl = document.getElementById("result");
       resultEl.textContent = "Testing...";
 
       const controller = new AbortController();
+      activeController = controller;
+      isTesting = true;
+      setButtonTestingState(true);
+
       const timeoutMs = 20000; // 20s safety timeout
       const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+      pingEl.textContent = "Ping: measuring...";
+      showProgress(true);
 
       try {
         const startTime = performance.now();
@@ -56,18 +123,45 @@
         const contentLengthHeader = response.headers.get("Content-Length");
         let totalBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
         let bytesRead = 0;
+        if (totalBytes === 0) {
+          // remain indeterminate until first chunk
+          showProgress(true);
+        }
+
+        let ttfbMs = null;
 
         if (response.body && response.body.getReader) {
           const reader = response.body.getReader();
           while (true) {
             const { value, done } = await reader.read();
             if (done) break;
-            bytesRead += value.byteLength;
+
+            if (ttfbMs === null) {
+              ttfbMs = performance.now() - startTime;
+              pingEl.textContent = `Ping (TTFB): ${Math.round(ttfbMs)} ms`;
+              if (totalBytes > 0) {
+                showProgress(false);
+              }
+            }
+
+            if (value) {
+              bytesRead += value.byteLength;
+              if (totalBytes > 0) {
+                const percent = (bytesRead / totalBytes) * 100;
+                setProgress(percent);
+              }
+            }
           }
         } else {
           // Fallback for environments without ReadableStream
           const buffer = await response.arrayBuffer();
           bytesRead = buffer.byteLength;
+          ttfbMs = performance.now() - startTime;
+          pingEl.textContent = `Ping (TTFB): ${Math.round(ttfbMs)} ms`;
+          if (totalBytes > 0) {
+            showProgress(false);
+            setProgress(100);
+          }
         }
 
         clearTimeout(timeoutId);
@@ -79,23 +173,31 @@
         const speedBps = bitsLoaded / durationSec;
         const speedMbps = (speedBps / (1024 * 1024)).toFixed(2);
 
-        resultEl.innerText = `Your Download Speed: ${speedMbps} Mbps`;
+        setProgress(100);
+        resultEl.textContent = `Your Download Speed: ${speedMbps} Mbps`;
+        isTesting = false;
+        setButtonTestingState(false);
+        hideProgress();
+        activeController = null;
       } catch (error) {
-        clearTimeout(timeoutId);
         console.error(error);
-        resultEl.innerText = "An error occurred. Test failed.";
+        resultEl.textContent = error.name === "AbortError" ? "Test aborted." : "An error occurred. Test failed.";
+        isTesting = false;
+        setButtonTestingState(false);
+        hideProgress();
+        activeController = null;
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
     // Attach event listener instead of inline handler
-    const startBtn = document.getElementById("startTest");
     startBtn.addEventListener("click", async () => {
-      startBtn.disabled = true;
-      try {
-        await testDownloadSpeed();
-      } finally {
-        startBtn.disabled = false;
+      if (isTesting) {
+        if (activeController) activeController.abort();
+        return;
       }
+      await testDownloadSpeed();
     });
   </script>
 </body>
