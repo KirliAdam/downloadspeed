@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DownloadSpeed.com - Test Your Download Speed</title>
+  <!-- Added resource hints for faster connection setup to the test file host -->
+  <link rel="dns-prefetch" href="//upload.wikimedia.org">
+  <link rel="preconnect" href="https://upload.wikimedia.org" crossorigin>
   <style>
     body {
       font-family: sans-serif;
@@ -28,33 +31,72 @@
 </head>
 <body>
   <h1>Test Your Internet Download Speed</h1>
-  <button onclick="testDownloadSpeed()">Start Test</button>
-  <div id="result"></div>
+  <!-- Replaced inline onclick with an id for JS event listener -->
+  <button id="startTest">Start Test</button>
+  <div id="result" role="status" aria-live="polite"></div>
 
   <script>
     async function testDownloadSpeed() {
-      const fileUrl = "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg"; // 2.3MB file
-      const fileSizeBytes = 2.3 * 1024 * 1024;
+      const baseUrl = "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg"; // ~2.3MB file
+      const url = `${baseUrl}?cb=${Date.now()}`; // cache-busting to avoid 304s
 
-      document.getElementById("result").innerText = "Testing...";
+      const resultEl = document.getElementById("result");
+      resultEl.textContent = "Testing...";
+
+      const controller = new AbortController();
+      const timeoutMs = 20000; // 20s safety timeout
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-        const startTime = new Date().getTime();
-        const response = await fetch(fileUrl, { cache: "no-cache" });
-        const blob = await response.blob();
-        const endTime = new Date().getTime();
+        const startTime = performance.now();
+        const response = await fetch(url, { cache: "no-store", signal: controller.signal, mode: "cors" });
+        if (!response.ok) throw new Error(`Network error: ${response.status}`);
 
-        const duration = (endTime - startTime) / 1000;
-        const bitsLoaded = fileSizeBytes * 8;
-        const speedBps = bitsLoaded / duration;
+        // Prefer content-length when available; otherwise count streamed bytes
+        const contentLengthHeader = response.headers.get("Content-Length");
+        let totalBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
+        let bytesRead = 0;
+
+        if (response.body && response.body.getReader) {
+          const reader = response.body.getReader();
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            bytesRead += value.byteLength;
+          }
+        } else {
+          // Fallback for environments without ReadableStream
+          const buffer = await response.arrayBuffer();
+          bytesRead = buffer.byteLength;
+        }
+
+        clearTimeout(timeoutId);
+        const endTime = performance.now();
+
+        const bytesDownloaded = totalBytes || bytesRead;
+        const durationSec = (endTime - startTime) / 1000;
+        const bitsLoaded = bytesDownloaded * 8;
+        const speedBps = bitsLoaded / durationSec;
         const speedMbps = (speedBps / (1024 * 1024)).toFixed(2);
 
-        document.getElementById("result").innerText = `Your Download Speed: ${speedMbps} Mbps`;
+        resultEl.innerText = `Your Download Speed: ${speedMbps} Mbps`;
       } catch (error) {
+        clearTimeout(timeoutId);
         console.error(error);
-        document.getElementById("result").innerText = "An error occurred. Test failed.";
+        resultEl.innerText = "An error occurred. Test failed.";
       }
     }
+
+    // Attach event listener instead of inline handler
+    const startBtn = document.getElementById("startTest");
+    startBtn.addEventListener("click", async () => {
+      startBtn.disabled = true;
+      try {
+        await testDownloadSpeed();
+      } finally {
+        startBtn.disabled = false;
+      }
+    });
   </script>
 </body>
 </html>
