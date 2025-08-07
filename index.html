@@ -96,6 +96,7 @@
     #leafletMap {
       width: 320px;
       height: 180px;
+      background: #e5e7eb;
     }
     #history {
       margin: 2rem auto;
@@ -389,19 +390,22 @@
             const lat = latitude;
             const lon = longitude;
             const zoom = 6;
-            if (!leafletMap) {
-              leafletMap = L.map('leafletMap', { zoomControl: false, attributionControl: false }).setView([lat, lon], zoom);
-              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-              }).addTo(leafletMap);
-            } else {
-              leafletMap.setView([lat, lon], zoom);
-            }
-            if (leafletMarker) {
-              leafletMarker.setLatLng([lat, lon]);
-            } else {
-              leafletMarker = L.marker([lat, lon]).addTo(leafletMap);
-            }
+                         if (!leafletMap) {
+               leafletMap = L.map('leafletMap', { zoomControl: true }).setView([lat, lon], zoom);
+               L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                 maxZoom: 19,
+                 attribution: '&copy; OpenStreetMap contributors'
+               }).addTo(leafletMap);
+             } else {
+               leafletMap.setView([lat, lon], zoom);
+             }
+             if (leafletMarker) {
+               leafletMarker.setLatLng([lat, lon]);
+             } else {
+               leafletMarker = L.marker([lat, lon]).addTo(leafletMap);
+             }
+             // Fix grey map by recalculating size after layout
+             setTimeout(() => { try { leafletMap.invalidateSize(); } catch(e){} }, 0);
           }
         } else {
           asnEl.textContent = ispEl.textContent = countryEl.textContent = regionEl.textContent = cityEl.textContent = latEl.textContent = lonEl.textContent = "-";
@@ -419,6 +423,7 @@
     // Initial render
     renderHistory();
     loadIpInfo();
+    window.addEventListener('resize', () => { if (leafletMap) { try { leafletMap.invalidateSize(); } catch(e){} } });
 
     // Attach event listener instead of inline handler
     startBtn.addEventListener("click", async () => {
