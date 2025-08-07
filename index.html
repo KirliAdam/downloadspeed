@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DownloadSpeed.com - İndirme Hızını Test Et</title>
+  <title>DownloadSpeed.com - Test Your Download Speed</title>
   <style>
     body {
       font-family: sans-serif;
@@ -27,16 +27,16 @@
   </style>
 </head>
 <body>
-  <h1>İnternet İndirme Hızınızı Test Edin</h1>
-  <button onclick="testDownloadSpeed()">Teste Başla</button>
+  <h1>Test Your Internet Download Speed</h1>
+  <button onclick="testDownloadSpeed()">Start Test</button>
   <div id="result"></div>
 
   <script>
     async function testDownloadSpeed() {
-      const fileUrl = "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg"; // 2.3MB dosya
+      const fileUrl = "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg"; // 2.3MB file
       const fileSizeBytes = 2.3 * 1024 * 1024;
 
-      document.getElementById("result").innerText = "Test yapılıyor...";
+      document.getElementById("result").innerText = "Testing...";
 
       try {
         const startTime = new Date().getTime();
@@ -49,10 +49,10 @@
         const speedBps = bitsLoaded / duration;
         const speedMbps = (speedBps / (1024 * 1024)).toFixed(2);
 
-        document.getElementById("result").innerText = `İndirme Hızınız: ${speedMbps} Mbps`;
+        document.getElementById("result").innerText = `Your Download Speed: ${speedMbps} Mbps`;
       } catch (error) {
         console.error(error);
-        document.getElementById("result").innerText = "Bir hata oluştu. Test başarısız.";
+        document.getElementById("result").innerText = "An error occurred. Test failed.";
       }
     }
   </script>
