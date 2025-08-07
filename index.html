@@ -137,7 +137,7 @@
       </table>
     </div>
     <div id="mapBox">
-      <img id="geoMap" alt="Location map" width="320" height="180" />
+      <img id="geoMap" alt="Location map" width="320" height="180" referrerpolicy="no-referrer" />
     </div>
   </div>
   <!-- Replaced inline onclick with an id for JS event listener -->
@@ -180,6 +180,10 @@
     const historyBodyEl = document.getElementById("historyBody");
     let isTesting = false;
     let activeController = null;
+    const mapImg = document.getElementById("geoMap");
+    if (mapImg) {
+      mapImg.onerror = () => { mapImg.style.display = "none"; };
+    }
     let userAborted = false;
     let pingIntervalId = null;
     let progressRafId = null;
@@ -337,52 +341,65 @@
     }
 
     async function loadIpInfo() {
+      const timeout = (ms) => new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms));
+      async function safeJson(url, opts={}, ms=6000) {
+        try {
+          const res = await Promise.race([fetch(url, opts), timeout(ms)]);
+          if (!res.ok) throw new Error('bad status');
+          return await res.json();
+        } catch {
+          return null;
+        }
+      }
       try {
-        // Fetch IPv4 and IPv6 in parallel
-        const [v4Res, v6Res] = await Promise.allSettled([
-          fetch("https://api.ipify.org?format=json", { cache: "no-store" }),
-          fetch("https://api64.ipify.org?format=json", { cache: "no-store" }),
+        // Fetch IPv4 and IPv6 in parallel with timeouts
+        const [v4, v6] = await Promise.all([
+          safeJson("https://api.ipify.org?format=json"),
+          safeJson("https://api64.ipify.org?format=json"),
         ]);
-        let ipv4 = "-";
-        let ipv6 = "-";
-        if (v4Res.status === "fulfilled" && v4Res.value.ok) {
-          const d = await v4Res.value.json();
-          ipv4 = d.ip || "-";
-        }
-        if (v6Res.status === "fulfilled" && v6Res.value.ok) {
-          const d = await v6Res.value.json();
-          ipv6 = d.ip || "-";
-        }
-        ipv4El.textContent = ipv4;
-        ipv6El.textContent = ipv6;
+        ipv4El.textContent = v4?.ip || "-";
+        ipv6El.textContent = v6?.ip || "-";
 
-        // Use ipapi for details (falls back gracefully)
-        const detailsRes = await fetch("https://ipapi.co/json/", { cache: "no-store" });
-        if (detailsRes.ok) {
-          const data = await detailsRes.json();
-          asnEl.textContent = data.asn || "-";
-          ispEl.textContent = data.org || "-";
-          countryEl.textContent = data.country_name || data.country || "-";
-          regionEl.textContent = data.region || "-";
-          cityEl.textContent = data.city || "-";
-          latEl.textContent = data.latitude != null ? String(data.latitude) : "-";
-          lonEl.textContent = data.longitude != null ? String(data.longitude) : "-";
-          // Update static map (OpenStreetMap via maptiler static map or OSM tile server)
-          if (data.latitude != null && data.longitude != null) {
-            const lat = data.latitude;
-            const lon = data.longitude;
+        // Try ipapi first, fall back to ipwho.is
+        let data = await safeJson("https://ipapi.co/json/");
+        if (!data) data = await safeJson("https://ipwho.is/");
+        if (data) {
+          const isIpwho = Object.prototype.hasOwnProperty.call(data, 'success');
+          const asn = isIpwho ? (data.connection?.asn || data.asn || null) : (data.asn || null);
+          const org = isIpwho ? (data.connection?.isp || data.org || data.connection?.org || null) : (data.org || null);
+          const country = isIpwho ? (data.country || data.country_name || null) : (data.country_name || data.country || null);
+          const region = isIpwho ? (data.region || data.region_name || null) : (data.region || null);
+          const city = isIpwho ? (data.city || null) : (data.city || null);
+          const latitude = isIpwho ? (data.latitude ?? data.lat ?? null) : (data.latitude ?? null);
+          const longitude = isIpwho ? (data.longitude ?? data.lon ?? null) : (data.longitude ?? null);
+
+          asnEl.textContent = asn || "-";
+          ispEl.textContent = org || "-";
+          countryEl.textContent = country || "-";
+          regionEl.textContent = region || "-";
+          cityEl.textContent = city || "-";
+          latEl.textContent = latitude != null ? String(latitude) : "-";
+          lonEl.textContent = longitude != null ? String(longitude) : "-";
+
+          if (latitude != null && longitude != null) {
+            const lat = latitude;
+            const lon = longitude;
             const zoom = 6;
-            // Using OSM tile hosting for a lightweight static view
             const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lon}&zoom=${zoom}&size=320x180&maptype=mapnik&markers=${lat},${lon},lightblue1`;
             const img = document.getElementById('geoMap');
             img.src = mapUrl;
+            img.style.display = '';
           }
         } else {
           asnEl.textContent = ispEl.textContent = countryEl.textContent = regionEl.textContent = cityEl.textContent = latEl.textContent = lonEl.textContent = "-";
+          const img = document.getElementById('geoMap');
+          if (img) img.style.display = 'none';
         }
       } catch {
         ipv4El.textContent = ipv6El.textContent = "-";
         asnEl.textContent = ispEl.textContent = countryEl.textContent = regionEl.textContent = cityEl.textContent = latEl.textContent = lonEl.textContent = "-";
+        const img = document.getElementById('geoMap');
+        if (img) img.style.display = 'none';
       }
     }
 
