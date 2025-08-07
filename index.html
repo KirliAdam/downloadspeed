@@ -1,67 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DownloadSpeed.com - İnternet İndirme Hızını Test Et</title>
-  <script>
-    let startTime, endTime;
-
-    async function testDownloadSpeed() {
-      const testFile = "https://speed.hetzner.de/10MB.bin"; // 10 MB test dosyası
-      const fileSizeInBytes = 10 * 1024 * 1024; // 10MB in bytes
-      document.getElementById("result").innerText = "Test yapılıyor...";
-      startTime = new Date().getTime();
-
-      try {
-        const response = await fetch(testFile, { cache: "no-cache" });
-        const reader = response.body.getReader();
-        let receivedLength = 0;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          receivedLength += value.length;
-        }
-        endTime = new Date().getTime();
-        const duration = (endTime - startTime) / 1000;
-        const bitsLoaded = fileSizeInBytes * 8;
-        const speedBps = bitsLoaded / duration;
-        const speedMbps = (speedBps / (1024 * 1024)).toFixed(2);
-
-        document.getElementById("result").innerText = `İndirme Hızınız: ${speedMbps} Mbps`;
-      } catch (e) {
-        document.getElementById("result").innerText = "Test sırasında hata oluştu.";
-        console.error(e);
-      }
-    }
-  </script>
+  <title>DownloadSpeed.com - İndirme Hızını Test Et</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-      background: #f7fafc;
-    }
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 1rem;
+      font-family: sans-serif;
+      background: #f3f4f6;
+      text-align: center;
+      padding-top: 100px;
     }
     button {
-      background-color: #3b82f6;
+      background-color: #2563eb;
       color: white;
-      border: none;
       padding: 1rem 2rem;
-      border-radius: 0.5rem;
       font-size: 1rem;
+      border: none;
+      border-radius: 0.5rem;
       cursor: pointer;
     }
     #result {
-      margin-top: 1.5rem;
-      font-size: 1.2rem;
+      margin-top: 2rem;
+      font-size: 1.3rem;
     }
   </style>
 </head>
@@ -69,5 +30,31 @@
   <h1>İnternet İndirme Hızınızı Test Edin</h1>
   <button onclick="testDownloadSpeed()">Teste Başla</button>
   <div id="result"></div>
+
+  <script>
+    async function testDownloadSpeed() {
+      const fileUrl = "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg"; // 2.3MB dosya
+      const fileSizeBytes = 2.3 * 1024 * 1024;
+
+      document.getElementById("result").innerText = "Test yapılıyor...";
+
+      try {
+        const startTime = new Date().getTime();
+        const response = await fetch(fileUrl, { cache: "no-cache" });
+        const blob = await response.blob();
+        const endTime = new Date().getTime();
+
+        const duration = (endTime - startTime) / 1000;
+        const bitsLoaded = fileSizeBytes * 8;
+        const speedBps = bitsLoaded / duration;
+        const speedMbps = (speedBps / (1024 * 1024)).toFixed(2);
+
+        document.getElementById("result").innerText = `İndirme Hızınız: ${speedMbps} Mbps`;
+      } catch (error) {
+        console.error(error);
+        document.getElementById("result").innerText = "Bir hata oluştu. Test başarısız.";
+      }
+    }
+  </script>
 </body>
 </html>
