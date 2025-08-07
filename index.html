@@ -7,8 +7,7 @@
   <!-- Added resource hints for faster connection setup to the test file host -->
   <link rel="dns-prefetch" href="//upload.wikimedia.org">
   <link rel="preconnect" href="https://upload.wikimedia.org" crossorigin>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
   <style>
     body {
       font-family: sans-serif;
@@ -98,6 +97,10 @@
       height: 180px;
       background: #e5e7eb;
     }
+    #gmap {
+      width: 320px;
+      height: 180px;
+    }
     #history {
       margin: 2rem auto;
       max-width: 720px;
@@ -144,7 +147,7 @@
       </table>
     </div>
     <div id="mapBox">
-      <div id="leafletMap" role="img" aria-label="Location map"></div>
+      <div id="gmap" role="img" aria-label="Location map"></div>
     </div>
   </div>
   <!-- Replaced inline onclick with an id for JS event listener -->
@@ -165,9 +168,10 @@
       <tbody id="historyBody">
       </tbody>
     </table>
-  </section>
-
-  <script>
+    </section>
+ 
+   <script async src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY"></script>
+   <script>
     // UI refs and state
     const resultEl = document.getElementById("result");
     const pingEl = document.getElementById("ping");
@@ -187,8 +191,8 @@
     const historyBodyEl = document.getElementById("historyBody");
     let isTesting = false;
     let activeController = null;
-    let leafletMap = null;
-    let leafletMarker = null;
+    let gmap = null;
+    let gmapMarker = null;
     let userAborted = false;
     let pingIntervalId = null;
     let progressRafId = null;
@@ -386,26 +390,29 @@
           latEl.textContent = latitude != null ? String(latitude) : "-";
           lonEl.textContent = longitude != null ? String(longitude) : "-";
 
-          if (latitude != null && longitude != null) {
+                    if (latitude != null && longitude != null) {
             const lat = latitude;
             const lon = longitude;
             const zoom = 6;
-                         if (!leafletMap) {
-               leafletMap = L.map('leafletMap', { zoomControl: true }).setView([lat, lon], zoom);
-               L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                 maxZoom: 19,
-                 attribution: '&copy; OpenStreetMap contributors'
-               }).addTo(leafletMap);
-             } else {
-               leafletMap.setView([lat, lon], zoom);
-             }
-             if (leafletMarker) {
-               leafletMarker.setLatLng([lat, lon]);
-             } else {
-               leafletMarker = L.marker([lat, lon]).addTo(leafletMap);
-             }
-             // Fix grey map by recalculating size after layout
-             setTimeout(() => { try { leafletMap.invalidateSize(); } catch(e){} }, 0);
+            // Initialize or update Google Map via gmaps api
+            if (!gmap) {
+              gmap = new google.maps.Map(document.getElementById('gmap'), {
+                center: { lat, lng: lon },
+                zoom: zoom,
+                disableDefaultUI: false,
+                mapTypeControl: false,
+                streetViewControl: false,
+              });
+            } else {
+              gmap.setCenter({ lat, lng: lon });
+              gmap.setZoom(zoom);
+            }
+            if (gmapMarker) {
+              gmapMarker.setPosition({ lat, lng: lon });
+            } else {
+              gmapMarker = new google.maps.Marker({ position: { lat, lng: lon }, map: gmap });
+            }
+          }
           }
         } else {
           asnEl.textContent = ispEl.textContent = countryEl.textContent = regionEl.textContent = cityEl.textContent = latEl.textContent = lonEl.textContent = "-";
@@ -423,7 +430,6 @@
     // Initial render
     renderHistory();
     loadIpInfo();
-    window.addEventListener('resize', () => { if (leafletMap) { try { leafletMap.invalidateSize(); } catch(e){} } });
 
     // Attach event listener instead of inline handler
     startBtn.addEventListener("click", async () => {
