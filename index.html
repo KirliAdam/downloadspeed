@@ -61,6 +61,35 @@
       margin-top: 0.5rem;
       color: #111827;
       font-size: 0.95rem;
+      text-align: left;
+    }
+    #topRow {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+      max-width: 900px;
+      margin: 0.5rem auto 1rem;
+      padding: 0 1rem;
+    }
+    #ipTable th {
+      padding-right: 0.75rem;
+      white-space: nowrap;
+      text-align: left;
+    }
+    #ipTable td {
+      text-align: left;
+    }
+    #mapBox {
+      margin-left: auto;
+      flex: 0 0 auto;
+      border-radius: 0.5rem;
+      overflow: hidden;
+      background: #ffffff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    #mapBox img {
+      display: block;
     }
     #history {
       margin: 2rem auto;
@@ -91,16 +120,25 @@
 </head>
 <body>
   <h1>Test Your Internet Download Speed</h1>
-  <div class="ipinfo" id="ipInfo">
-    <div><strong>IPv4:</strong> <span id="ipv4">Loading...</span></div>
-    <div><strong>IPv6:</strong> <span id="ipv6">Loading...</span></div>
-    <div><strong>ASN:</strong> <span id="asn">-</span></div>
-    <div><strong>ISP:</strong> <span id="isp">-</span></div>
-    <div><strong>Country:</strong> <span id="country">-</span></div>
-    <div><strong>State/Region:</strong> <span id="region">-</span></div>
-    <div><strong>City:</strong> <span id="city">-</span></div>
-    <div><strong>Latitude:</strong> <span id="lat">-</span></div>
-    <div><strong>Longitude:</strong> <span id="lon">-</span></div>
+  <div id="topRow">
+    <div class="ipinfo" id="ipInfo">
+      <table id="ipTable" aria-label="IP and ISP information">
+        <tbody>
+          <tr><th scope="row">IPv4</th><td><span id="ipv4">Loading...</span></td></tr>
+          <tr><th scope="row">IPv6</th><td><span id="ipv6">Loading...</span></td></tr>
+          <tr><th scope="row">ASN</th><td><span id="asn">-</span></td></tr>
+          <tr><th scope="row">ISP</th><td><span id="isp">-</span></td></tr>
+          <tr><th scope="row">Country</th><td><span id="country">-</span></td></tr>
+          <tr><th scope="row">State/Region</th><td><span id="region">-</span></td></tr>
+          <tr><th scope="row">City</th><td><span id="city">-</span></td></tr>
+          <tr><th scope="row">Latitude</th><td><span id="lat">-</span></td></tr>
+          <tr><th scope="row">Longitude</th><td><span id="lon">-</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="mapBox">
+      <img id="geoMap" alt="Location map" width="320" height="180" />
+    </div>
   </div>
   <!-- Replaced inline onclick with an id for JS event listener -->
   <button id="startTest">Start Test</button>
@@ -329,6 +367,16 @@
           cityEl.textContent = data.city || "-";
           latEl.textContent = data.latitude != null ? String(data.latitude) : "-";
           lonEl.textContent = data.longitude != null ? String(data.longitude) : "-";
+          // Update static map (OpenStreetMap via maptiler static map or OSM tile server)
+          if (data.latitude != null && data.longitude != null) {
+            const lat = data.latitude;
+            const lon = data.longitude;
+            const zoom = 6;
+            // Using OSM tile hosting for a lightweight static view
+            const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lon}&zoom=${zoom}&size=320x180&maptype=mapnik&markers=${lat},${lon},lightblue1`;
+            const img = document.getElementById('geoMap');
+            img.src = mapUrl;
+          }
         } else {
           asnEl.textContent = ispEl.textContent = countryEl.textContent = regionEl.textContent = cityEl.textContent = latEl.textContent = lonEl.textContent = "-";
         }
