@@ -75,125 +75,132 @@
     const startBtn = document.getElementById("startTest");
     let isTesting = false;
     let activeController = null;
+    let userAborted = false;
+    let pingIntervalId = null;
+    let progressRafId = null;
 
     function setButtonTestingState(inProgress) {
       startBtn.textContent = inProgress ? "Abort" : "Start Test";
     }
 
-    function showProgress(indeterminate = false) {
+    function showProgress() {
       progressEl.style.visibility = "visible";
-      progressEl.classList.toggle("indeterminate", indeterminate);
-      progressBar.style.width = indeterminate ? "40%" : "0%";
     }
 
     function setProgress(percent) {
-      progressEl.classList.remove("indeterminate");
       progressBar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
     }
 
     function hideProgress() {
       progressEl.style.visibility = "hidden";
-      progressEl.classList.remove("indeterminate");
       progressBar.style.width = "0%";
     }
 
     async function testDownloadSpeed() {
       const baseUrl = "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg"; // ~2.3MB file
-      const url = `${baseUrl}?cb=${Date.now()}`; // cache-busting to avoid 304s
+      const TEST_DURATION_MS = 15000; // Run test for fixed 15 seconds
 
       resultEl.textContent = "Testing...";
+      pingEl.textContent = "Ping: measuring...";
 
+      userAborted = false;
       const controller = new AbortController();
       activeController = controller;
       isTesting = true;
       setButtonTestingState(true);
 
-      const timeoutMs = 20000; // 20s safety timeout
-      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      // Time-based progress bar
+      const startTime = performance.now();
+      showProgress();
+      const updateProgress = () => {
+        if (!isTesting) return;
+        const elapsed = performance.now() - startTime;
+        const percent = Math.min(100, (elapsed / TEST_DURATION_MS) * 100);
+        setProgress(percent);
+        progressRafId = requestAnimationFrame(updateProgress);
+      };
+      progressRafId = requestAnimationFrame(updateProgress);
 
-      pingEl.textContent = "Ping: measuring...";
-      showProgress(true);
+      // Dynamic ping measurement (no-cors, same host)
+      let pingInFlight = false;
+      async function measurePingOnce() {
+        if (pingInFlight || !isTesting) return;
+        pingInFlight = true;
+        const t0 = performance.now();
+        try {
+          await fetch("https://upload.wikimedia.org/favicon.ico?cb=" + Date.now(), {
+            mode: "no-cors",
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          const t = Math.round(performance.now() - t0);
+          pingEl.textContent = `Ping: ${t} ms`;
+        } catch (_) {
+          // ignore
+        } finally {
+          pingInFlight = false;
+        }
+      }
+      // kick off immediately and then every second
+      measurePingOnce();
+      pingIntervalId = setInterval(measurePingOnce, 1000);
+
+      let totalBytes = 0;
 
       try {
-        const startTime = performance.now();
-        const response = await fetch(url, { cache: "no-store", signal: controller.signal, mode: "cors" });
-        if (!response.ok) throw new Error(`Network error: ${response.status}`);
+        // Keep downloading until 15s elapsed or aborted
+        while (isTesting && (performance.now() - startTime) < TEST_DURATION_MS) {
+          const url = `${baseUrl}?cb=${Math.random()}`;
+          const response = await fetch(url, { cache: "no-store", signal: controller.signal, mode: "cors" });
+          if (!response.ok) throw new Error(`Network error: ${response.status}`);
 
-        // Prefer content-length when available; otherwise count streamed bytes
-        const contentLengthHeader = response.headers.get("Content-Length");
-        let totalBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
-        let bytesRead = 0;
-        if (totalBytes === 0) {
-          // remain indeterminate until first chunk
-          showProgress(true);
-        }
-
-        let ttfbMs = null;
-
-        if (response.body && response.body.getReader) {
-          const reader = response.body.getReader();
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-
-            if (ttfbMs === null) {
-              ttfbMs = performance.now() - startTime;
-              pingEl.textContent = `Ping (TTFB): ${Math.round(ttfbMs)} ms`;
-              if (totalBytes > 0) {
-                showProgress(false);
+          if (response.body && response.body.getReader) {
+            const reader = response.body.getReader();
+            while (true) {
+              // End if time exceeded; abort current fetch to stop quickly
+              if ((performance.now() - startTime) >= TEST_DURATION_MS) {
+                controller.abort();
+                break;
               }
+              const { value, done } = await reader.read();
+              if (done) break;
+              if (value) totalBytes += value.byteLength;
             }
-
-            if (value) {
-              bytesRead += value.byteLength;
-              if (totalBytes > 0) {
-                const percent = (bytesRead / totalBytes) * 100;
-                setProgress(percent);
-              }
-            }
-          }
-        } else {
-          // Fallback for environments without ReadableStream
-          const buffer = await response.arrayBuffer();
-          bytesRead = buffer.byteLength;
-          ttfbMs = performance.now() - startTime;
-          pingEl.textContent = `Ping (TTFB): ${Math.round(ttfbMs)} ms`;
-          if (totalBytes > 0) {
-            showProgress(false);
-            setProgress(100);
+          } else {
+            // Fallback for environments without ReadableStream
+            const buffer = await response.arrayBuffer();
+            totalBytes += buffer.byteLength;
           }
         }
 
-        clearTimeout(timeoutId);
         const endTime = performance.now();
-
-        const bytesDownloaded = totalBytes || bytesRead;
-        const durationSec = (endTime - startTime) / 1000;
-        const bitsLoaded = bytesDownloaded * 8;
-        const speedBps = bitsLoaded / durationSec;
+        const durationSec = Math.min(TEST_DURATION_MS, endTime - startTime) / 1000;
+        const speedBps = (totalBytes * 8) / durationSec;
         const speedMbps = (speedBps / (1024 * 1024)).toFixed(2);
 
         setProgress(100);
         resultEl.textContent = `Your Download Speed: ${speedMbps} Mbps`;
-        isTesting = false;
-        setButtonTestingState(false);
-        hideProgress();
-        activeController = null;
       } catch (error) {
-        console.error(error);
-        resultEl.textContent = error.name === "AbortError" ? "Test aborted." : "An error occurred. Test failed.";
+        if (error.name === "AbortError" && userAborted) {
+          resultEl.textContent = "Test aborted.";
+        } else if (error.name !== "AbortError") {
+          console.error(error);
+          resultEl.textContent = "An error occurred. Test failed.";
+        }
+      } finally {
         isTesting = false;
         setButtonTestingState(false);
+        if (progressRafId) cancelAnimationFrame(progressRafId);
         hideProgress();
+        if (pingIntervalId) clearInterval(pingIntervalId);
         activeController = null;
-      } finally {
-        clearTimeout(timeoutId);
       }
     }
 
     // Attach event listener instead of inline handler
     startBtn.addEventListener("click", async () => {
       if (isTesting) {
+        userAborted = true;
         if (activeController) activeController.abort();
         return;
       }
