@@ -56,15 +56,61 @@
       0% { transform: translateX(-100%); }
       100% { transform: translateX(250%); }
     }
+
+    .ipinfo {
+      margin-top: 0.5rem;
+      color: #111827;
+      font-size: 0.95rem;
+    }
+    #history {
+      margin: 2rem auto;
+      max-width: 720px;
+      padding: 0 1rem;
+    }
+    #historyTable {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 0.5rem;
+      overflow: hidden;
+    }
+    #historyTable th, #historyTable td {
+      padding: 0.75rem 0.75rem;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+    #historyTable thead th {
+      background: #f9fafb;
+      font-weight: 600;
+    }
+    #historyTable tbody tr:last-child td {
+      border-bottom: none;
+    }
   </style>
 </head>
 <body>
   <h1>Test Your Internet Download Speed</h1>
+  <div class="ipinfo" id="ipInfo">Loading IP and ISP...</div>
   <!-- Replaced inline onclick with an id for JS event listener -->
   <button id="startTest">Start Test</button>
   <div id="progress" aria-hidden="true"><div id="progressBar"></div></div>
   <div id="result" role="status" aria-live="polite"></div>
   <div id="ping"></div>
+
+  <section id="history">
+    <table id="historyTable" aria-label="Last 5 tests">
+      <thead>
+        <tr>
+          <th scope="col">Time</th>
+          <th scope="col">Speed (Mbps)</th>
+          <th scope="col">Avg Ping (ms)</th>
+        </tr>
+      </thead>
+      <tbody id="historyBody">
+      </tbody>
+    </table>
+  </section>
 
   <script>
     // UI refs and state
@@ -73,6 +119,8 @@
     const progressEl = document.getElementById("progress");
     const progressBar = document.getElementById("progressBar");
     const startBtn = document.getElementById("startTest");
+    const ipInfoEl = document.getElementById("ipInfo");
+    const historyBodyEl = document.getElementById("historyBody");
     let isTesting = false;
     let activeController = null;
     let userAborted = false;
@@ -123,6 +171,7 @@
 
       // Dynamic ping measurement (no-cors, same host)
       let pingInFlight = false;
+      const pingSamples = [];
       async function measurePingOnce() {
         if (pingInFlight || !isTesting) return;
         pingInFlight = true;
@@ -134,6 +183,7 @@
             signal: controller.signal,
           });
           const t = Math.round(performance.now() - t0);
+          pingSamples.push(t);
           pingEl.textContent = `Ping: ${t} ms`;
         } catch (_) {
           // ignore
@@ -177,9 +227,11 @@
         const durationSec = Math.min(TEST_DURATION_MS, endTime - startTime) / 1000;
         const speedBps = (totalBytes * 8) / durationSec;
         const speedMbps = (speedBps / (1024 * 1024)).toFixed(2);
+        const avgPing = pingSamples.length ? Math.round(pingSamples.reduce((a,b)=>a+b,0) / pingSamples.length) : 0;
 
         setProgress(100);
         resultEl.textContent = `Your Download Speed: ${speedMbps} Mbps`;
+        upsertHistory({ time: new Date().toISOString(), speedMbps, avgPing });
       } catch (error) {
         if (error.name === "AbortError" && userAborted) {
           resultEl.textContent = "Test aborted.";
@@ -196,6 +248,53 @@
         activeController = null;
       }
     }
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem("downloadspeed_history");
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveHistory(rows) {
+      localStorage.setItem("downloadspeed_history", JSON.stringify(rows.slice(0,5)));
+    }
+
+    function renderHistory() {
+      const rows = loadHistory();
+      historyBodyEl.innerHTML = rows.map(r => {
+        const dt = new Date(r.time);
+        const timeStr = dt.toLocaleString();
+        return `<tr><td>${timeStr}</td><td>${r.speedMbps}</td><td>${r.avgPing}</td></tr>`;
+      }).join("");
+    }
+
+    function upsertHistory(entry) {
+      const rows = loadHistory();
+      rows.unshift(entry);
+      const trimmed = rows.slice(0,5);
+      saveHistory(trimmed);
+      renderHistory();
+    }
+
+    async function loadIpInfo() {
+      try {
+        const res = await fetch("https://ipapi.co/json/", { cache: "no-store" });
+        if (!res.ok) throw new Error("ipapi error");
+        const data = await res.json();
+        const ip = data.ip || "Unknown IP";
+        const isp = data.org || data.asn || "Unknown ISP";
+        ipInfoEl.textContent = `IP: ${ip} • ISP: ${isp}`;
+      } catch {
+        ipInfoEl.textContent = "IP and ISP unavailable";
+      }
+    }
+
+    // Initial render
+    renderHistory();
+    loadIpInfo();
 
     // Attach event listener instead of inline handler
     startBtn.addEventListener("click", async () => {
