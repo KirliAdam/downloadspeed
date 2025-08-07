@@ -91,7 +91,17 @@
 </head>
 <body>
   <h1>Test Your Internet Download Speed</h1>
-  <div class="ipinfo" id="ipInfo">Loading IP and ISP...</div>
+  <div class="ipinfo" id="ipInfo">
+    <div><strong>IPv4:</strong> <span id="ipv4">Loading...</span></div>
+    <div><strong>IPv6:</strong> <span id="ipv6">Loading...</span></div>
+    <div><strong>ASN:</strong> <span id="asn">-</span></div>
+    <div><strong>ISP:</strong> <span id="isp">-</span></div>
+    <div><strong>Country:</strong> <span id="country">-</span></div>
+    <div><strong>State/Region:</strong> <span id="region">-</span></div>
+    <div><strong>City:</strong> <span id="city">-</span></div>
+    <div><strong>Latitude:</strong> <span id="lat">-</span></div>
+    <div><strong>Longitude:</strong> <span id="lon">-</span></div>
+  </div>
   <!-- Replaced inline onclick with an id for JS event listener -->
   <button id="startTest">Start Test</button>
   <div id="progress" aria-hidden="true"><div id="progressBar"></div></div>
@@ -120,6 +130,15 @@
     const progressBar = document.getElementById("progressBar");
     const startBtn = document.getElementById("startTest");
     const ipInfoEl = document.getElementById("ipInfo");
+    const ipv4El = document.getElementById("ipv4");
+    const ipv6El = document.getElementById("ipv6");
+    const asnEl = document.getElementById("asn");
+    const ispEl = document.getElementById("isp");
+    const countryEl = document.getElementById("country");
+    const regionEl = document.getElementById("region");
+    const cityEl = document.getElementById("city");
+    const latEl = document.getElementById("lat");
+    const lonEl = document.getElementById("lon");
     const historyBodyEl = document.getElementById("historyBody");
     let isTesting = false;
     let activeController = null;
@@ -281,14 +300,41 @@
 
     async function loadIpInfo() {
       try {
-        const res = await fetch("https://ipapi.co/json/", { cache: "no-store" });
-        if (!res.ok) throw new Error("ipapi error");
-        const data = await res.json();
-        const ip = data.ip || "Unknown IP";
-        const isp = data.org || data.asn || "Unknown ISP";
-        ipInfoEl.textContent = `IP: ${ip} • ISP: ${isp}`;
+        // Fetch IPv4 and IPv6 in parallel
+        const [v4Res, v6Res] = await Promise.allSettled([
+          fetch("https://api.ipify.org?format=json", { cache: "no-store" }),
+          fetch("https://api64.ipify.org?format=json", { cache: "no-store" }),
+        ]);
+        let ipv4 = "-";
+        let ipv6 = "-";
+        if (v4Res.status === "fulfilled" && v4Res.value.ok) {
+          const d = await v4Res.value.json();
+          ipv4 = d.ip || "-";
+        }
+        if (v6Res.status === "fulfilled" && v6Res.value.ok) {
+          const d = await v6Res.value.json();
+          ipv6 = d.ip || "-";
+        }
+        ipv4El.textContent = ipv4;
+        ipv6El.textContent = ipv6;
+
+        // Use ipapi for details (falls back gracefully)
+        const detailsRes = await fetch("https://ipapi.co/json/", { cache: "no-store" });
+        if (detailsRes.ok) {
+          const data = await detailsRes.json();
+          asnEl.textContent = data.asn || "-";
+          ispEl.textContent = data.org || "-";
+          countryEl.textContent = data.country_name || data.country || "-";
+          regionEl.textContent = data.region || "-";
+          cityEl.textContent = data.city || "-";
+          latEl.textContent = data.latitude != null ? String(data.latitude) : "-";
+          lonEl.textContent = data.longitude != null ? String(data.longitude) : "-";
+        } else {
+          asnEl.textContent = ispEl.textContent = countryEl.textContent = regionEl.textContent = cityEl.textContent = latEl.textContent = lonEl.textContent = "-";
+        }
       } catch {
-        ipInfoEl.textContent = "IP and ISP unavailable";
+        ipv4El.textContent = ipv6El.textContent = "-";
+        asnEl.textContent = ispEl.textContent = countryEl.textContent = regionEl.textContent = cityEl.textContent = latEl.textContent = lonEl.textContent = "-";
       }
     }
 
