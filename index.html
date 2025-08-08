@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DownloadSpeed.com - Test Your Download Speed</title>
+  <title>DownloadSpeedTest.net - Test Your Download Speed</title>
   <!-- Added resource hints for faster connection setup to the test file host -->
   <link rel="dns-prefetch" href="//upload.wikimedia.org">
   <link rel="preconnect" href="https://upload.wikimedia.org" crossorigin>
@@ -193,7 +193,7 @@
 
     async function testDownloadSpeed() {
       const baseUrl = "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fronalpstock_big.jpg"; // ~2.3MB file
-      const TEST_DURATION_MS = 15000; // Run test for fixed 15 seconds
+      const TEST_DURATION_MS = 10000; // Run test for fixed 10 seconds
 
       resultEl.textContent = "Testing...";
       pingEl.textContent = "Ping: measuring...";
@@ -397,3 +397,4 @@
   </script>
 </body>
 </html>
+
